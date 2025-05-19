@@ -1,53 +1,68 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from math import comb
+import itertools
 
-def joint_at_least_k_monsters(n, p1, k1, p2, k2):
-    if p1 + p2 > 1:
-        raise ValueError("The sum of probabilities for monster 1 and 2 must be ≤ 1.")
+# Compute multinomial coefficient
+def multinomial_coeff(counts):
+    n = sum(counts)
+    result = 1
+    for c in counts:
+        result *= comb(n, c)
+        n -= c
+    return result
 
+# Compute joint probability: P(all X_i >= k_i)
+def joint_at_least_k(n, probs, counts):
+    m = len(probs)
     total_prob = 0
 
-    # Iterate over all possible counts of monster 1 (x) and monster 2 (y)
-    for x in range(n + 1):
-        for y in range(n - x + 1):
-            r = n - x - y
-            # Only include if it satisfies at least k1 of mon1 AND at least k2 of mon2
-            if x >= k1 and y >= k2:
-                multinom_coeff = comb(n, x) * comb(n - x, y)  # multinomial coeff: C(n, x) * C(n-x, y)
-                prob = multinom_coeff * (p1 ** x) * (p2 ** y) * ((1 - p1 - p2) ** r)
-                total_prob += prob
+    if sum(probs) > 1:
+        raise ValueError("Total probability exceeds 1")
+
+    # Generate all possible outcomes where sum(allocations) <= n
+    for allocation in itertools.product(range(n + 1), repeat=m):
+        if sum(allocation) > n:
+            continue
+        if all(allocation[i] >= counts[i] for i in range(m)):
+            r = n - sum(allocation)
+            coeff = multinomial_coeff(list(allocation) + [r])
+            prob = coeff
+            for i in range(m):
+                prob *= (probs[i] ** allocation[i])
+            prob *= (1 - sum(probs)) ** r
+            total_prob += prob
 
     return total_prob
 
-try:
-    # === User Inputs ===
-    p1 = float(input("Enter probability of pulling Monster 1 (in %): ")) / 100
-    k1 = int(input("How many of Monster 1 do you want? "))
+# === Input loop ===
+probs = []
+counts = []
 
-    p2 = float(input("Enter probability of pulling Monster 2 (in %): ")) / 100
-    k2 = int(input("How many of Monster 2 do you want? "))
+for i in range(5):
+    p = float(input(f"Enter probability of pulling Monster {i+1} (in %, or 0 to stop): ")) / 100
+    if p == 0:
+        break
+    k = int(input(f"How many of Monster {i+1} do you want? (0 to stop): "))
+    if k == 0:
+        break
+    probs.append(p)
+    counts.append(k)
 
-    if any(p <= 0 or p > 1 for p in (p1, p2)):
-        raise ValueError("Probabilities must be between 0 and 100%")
-    if p1 + p2 > 1:
-        raise ValueError("Sum of monster probabilities must be ≤ 100%")
-    if k1 < 1 or k2 < 1:
-        raise ValueError("You must want at least one of each monster")
-
+if len(probs) == 0:
+    print("No valid monster data provided.")
+else:
     x = np.arange(0, 101)
-    y = [joint_at_least_k_monsters(n, p1, k1, p2, k2) if n >= (k1 + k2) else 0 for n in x]
+    y = [joint_at_least_k(n, probs, counts) if n >= sum(counts) else 0 for n in x]
 
-    # === Plotting ===
+    label_text = ' AND '.join([f'≥{counts[i]} of Mon{i+1}' for i in range(len(probs))])
+
     plt.figure(figsize=(8, 5))
     plt.plot(x, y, linewidth=2)
     plt.xticks(np.arange(0, 101, 10))
     plt.xlabel('number of pulls')
-    plt.ylabel(f'P(≥{k1} Mon1 AND ≥{k2} Mon2)')
-    plt.title(f'Cumulative Probability of Getting ≥{k1} Mon1 and ≥{k2} Mon2')
+    plt.ylabel(f'P({label_text})')
+    plt.title(f'Cumulative Probability of {label_text}')
     plt.grid(True)
-    plt.savefig("gacha_dual_monster_chart.png")
+    plt.savefig("gacha_multi_monster_chart.png")
     plt.show()
-
-except ValueError as e:
-    print(f"Input error: {e}")
