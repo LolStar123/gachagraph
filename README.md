@@ -1,0 +1,2 @@
+# gachagraph
+show pull probabilities
